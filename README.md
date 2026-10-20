@@ -2,7 +2,7 @@
 
 An interactive, in-browser simulator of **Chladni figures**: the patterns sand forms on a vibrating plate. Sand gets bounced off the parts of the plate that move and collects along the **nodal lines**, where the plate stays still. Change the driving frequency and the figure changes. When the frequency lands on one of the plate's natural modes (a resonance), the pattern turns sharp.
 
-Plain HTML, CSS and ES modules, with no build step. Three.js is vendored for the 3D view.
+Plain HTML, CSS and JavaScript. The sources in `js/` are ES modules; they are bundled with three.js into one classic script, `dist/chladni.js`, so the app opens straight from disk.
 
 ## Features
 
@@ -66,14 +66,17 @@ The six strongest modes are summed into the displacement field `u` and normalise
 
 ## Run locally
 
-Browsers won't load ES modules from `file://`, so serve the folder over HTTP:
+Download or clone the repository and **double-click `index.html`**. No server needed.
+
+## Development
+
+After changing anything in `js/`, rebuild the bundle and commit `dist/chladni.js` along with your changes:
 
 ```bash
-python3 -m http.server 8000
-# then open http://localhost:8000
+npm install
+npm run build   # js/ + three.js → dist/chladni.js
+npm test        # physics tests
 ```
-
-Any static file server works.
 
 ## Deploy on GitHub Pages
 
@@ -87,7 +90,7 @@ The empty `.nojekyll` file stops Pages from running Jekyll on the files.
 ## File structure
 
 ```
-index.html                 page markup + import map for the vendored three.js
+index.html                 page markup, loads dist/chladni.js
 css/style.css              dark theme, layout, custom controls
 js/main.js                 bootstrap, render loop, wiring between modules
 js/state.js                app state + subscribe
@@ -100,8 +103,8 @@ js/render/colormap.js      inferno-like colour LUT
 js/render/view2d.js        2D compositor (plate, heatmap, nodal lines, sand)
 js/render/sand.js          sand particle system
 js/render/plate3d.js       Three.js vibrating plate
-vendor/three.module.js     three.js r169 (vendored)
-vendor/addons/controls/OrbitControls.js
+dist/chladni.js            built bundle (npm run build), what index.html loads
+package.json               build/test scripts; pins esbuild and three
 tests/physics.test.mjs     physics tests: node tests/physics.test.mjs
 ```
 

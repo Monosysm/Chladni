@@ -1,0 +1,13 @@
+{
+  "name": "chladni",
+  "private": true,
+  "description": "Chladni plate simulator (static web app)",
+  "scripts": {
+    "build": "esbuild js/main.js --bundle --format=iife --minify --target=es2020 --outfile=dist/chladni.js",
+    "test": "node tests/physics.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.169.0"
+  }
+}
