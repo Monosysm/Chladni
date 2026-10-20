@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Chladni Plate Simulator</title>
+  <meta name="description" content="Interactive Chladni plate simulator: sweep the driving frequency and watch sand gather on the nodal lines of a vibrating square or circular plate.">
+  <meta name="theme-color" content="#0e1014">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%23151820'/%3E%3Cpath d='M6 16h20M16 6v20M8 8l16 16M24 8L8 24' stroke='%235ee6ff' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three.module.js",
+                 "three/addons/": "./vendor/addons/" } }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="29" height="29" rx="8" />
+          <path d="M7 16h18M16 7v18M9.5 9.5l13 13M22.5 9.5l-13 13" />
+          <circle cx="16" cy="16" r="6.2" />
+        </svg>
+        <div class="brand-text">
+          <h1>Chladni Plate Simulator</h1>
+          <p class="subtitle">Drive a plate at a frequency and watch sand settle on its nodal lines &mdash; the places that stay still while the rest vibrates.</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="viewport" id="viewport" data-mode="2d" data-orient="landscape" aria-label="Plate visualization">
+        <div class="pane pane-2d" id="pane-2d">
+          <canvas id="view2d" role="img" aria-label="Top-down view of the vibrating plate"></canvas>
+          <div class="hud" aria-hidden="true">
+            <span class="chip"><span class="chip-dot" id="hud-dot"></span><span id="hud-freq">&mdash;</span></span>
+            <span class="chip chip-muted" id="hud-mode">&mdash;</span>
+            <span class="chip chip-sweep" id="hud-sweep" hidden>Sweeping</span>
+          </div>
+          <div class="pane-hint" id="empty-hint" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="m2 13 10 5 10-5"/><path d="m2 18 10 5 10-5" opacity=".5"/></svg>
+            <span>Enable a layer to see the plate</span>
+          </div>
+        </div>
+        <div class="pane pane-3d" id="pane-3d" hidden>
+          <div class="plate3d-host" id="plate3d-host"></div>
+          <div class="pane-msg" id="plate3d-msg" role="status" hidden></div>
+          <span class="pane-tag" aria-hidden="true">3D</span>
+          <span class="pane-foot" aria-hidden="true">Drag to orbit &middot; scroll to zoom</span>
+        </div>
+      </section>
+
+      <aside class="panel" id="panel" aria-label="Simulation controls">
+
+        <!-- 1. Plate -->
+        <section class="ctl-section" aria-labelledby="h-plate">
+          <h2 class="section-title" id="h-plate">
+            <svg class="section-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="8" height="8" rx="1.5"/><circle cx="10.5" cy="10.5" r="4"/></svg>
+            Plate
+          </h2>
+          <div class="segmented" id="shape-seg" role="radiogroup" aria-label="Plate shape" data-value="square">
+            <span class="seg-thumb" aria-hidden="true"></span>
+            <input type="radio" name="shape" id="shape-square" value="square" checked>
+            <label for="shape-square">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/></svg>
+              Square
+            </label>
+            <input type="radio" name="shape" id="shape-circle" value="circle">
+            <label for="shape-circle">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/></svg>
+              Circle
+            </label>
+          </div>
+        </section>
+
+        <!-- 2. Frequency -->
+        <section class="ctl-section" aria-labelledby="h-freq">
+          <h2 class="section-title" id="h-freq">
+            <svg class="section-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 8c1.2-5 2.5-5 3.5 0s2.3 5 3.5 0 2.3-5 3.5 0 2.3 5 3.5 0"/></svg>
+            Frequency
+            <span class="info" tabindex="0" role="note"
+              aria-label="The plate is driven with a sine wave. Patterns are sharpest when the frequency sits on a resonance (a natural mode of the plate)."
+              data-tip="The plate is driven with a sine wave. Patterns are sharpest when the frequency sits on a resonance (a natural mode of the plate).">?</span>
+          </h2>
+
+          <output class="freq-readout" id="freq-readout" for="freq-slider freq-input" aria-live="off">
+            <span class="freq-number" id="freq-value">&mdash;</span><span class="freq-unit">Hz</span>
+          </output>
+
+          <label class="sr-only" for="freq-slider">Frequency (logarithmic scale)</label>
+          <input type="range" class="range range-freq" id="freq-slider" min="0" max="1000" step="any" value="500">
+          <div class="scale" aria-hidden="true"><span>20 Hz</span><span>200</span><span>1k</span><span>5 kHz</span></div>
+
+          <div class="freq-fine">
+            <button type="button" class="btn btn-sm" id="freq-down" aria-label="Decrease frequency by 1 percent" title="−1%  (← key, Shift for −10%)">&minus;1%</button>
+            <div class="num-field">
+              <label class="sr-only" for="freq-input">Frequency in hertz</label>
+              <input type="number" id="freq-input" min="20" max="5000" step="0.1" inputmode="decimal" autocomplete="off" spellcheck="false">
+              <span class="num-suffix" aria-hidden="true">Hz</span>
+            </div>
+            <button type="button" class="btn btn-sm" id="freq-up" aria-label="Increase frequency by 1 percent" title="+1%  (→ key, Shift for +10%)">+1%</button>
+          </div>
+
+          <div class="res-nav">
+            <button type="button" class="btn btn-nav" id="res-prev" title="Jump to the previous resonance  ([ key)">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
+              <span class="btn-stack"><span class="btn-main">Prev resonance</span><span class="btn-sub" id="res-prev-freq">&mdash;</span></span>
+            </button>
+            <button type="button" class="btn btn-nav btn-nav-next" id="res-next" title="Jump to the next resonance  (] key)">
+              <span class="btn-stack"><span class="btn-main">Next resonance</span><span class="btn-sub" id="res-next-freq">&mdash;</span></span>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg>
+            </button>
+          </div>
+
+          <div class="mode-card">
+            <div class="mode-line">
+              <span class="mode-key">Nearest mode</span>
+              <span class="mode-val"><strong id="nearest-label">&mdash;</strong> &middot; <span id="nearest-freq">&mdash;</span></span>
+            </div>
+            <div class="mode-detune" id="nearest-detune" aria-live="off"></div>
+            <div class="meter">
+              <div class="meter-head">
+                <span id="res-label">Resonance</span>
+                <span class="meter-value" id="res-value">0%</span>
+              </div>
+              <div class="meter-track" id="res-meter" role="meter" aria-labelledby="res-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="meter-fill" id="res-fill"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Sweep -->
+        <section class="ctl-section" aria-labelledby="h-sweep">
+          <h2 class="section-title" id="h-sweep">
+            <svg class="section-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h10l-2.5-2.5M14 11H4l2.5 2.5"/></svg>
+            Sweep
+            <span class="info" tabindex="0" role="note"
+              aria-label="Glides the frequency back and forth between 20 Hz and 5 kHz on a logarithmic scale. Shortcut: Space."
+              data-tip="Glides the frequency back and forth between 20 Hz and 5 kHz on a logarithmic scale. Shortcut: Space.">?</span>
+          </h2>
+          <label class="switch-row" for="sweep-toggle">
+            <span class="switch-text">
+              <span class="switch-label">Auto sweep</span>
+              <span class="switch-desc" id="sweep-dir">Ping-pong between 20 Hz and 5 kHz</span>
+            </span>
+            <input type="checkbox" class="switch" role="switch" id="sweep-toggle" aria-describedby="sweep-dir">
+          </label>
+          <div class="field">
+            <div class="field-head">
+              <label for="sweep-rate">Speed</label>
+              <output class="field-value" id="sweep-rate-value" for="sweep-rate">0.15 oct/s</output>
+            </div>
+            <input type="range" class="range" id="sweep-rate" min="0.02" max="1" step="0.01" value="0.15">
+            <div class="scale" aria-hidden="true"><span>Slow</span><span>Fast</span></div>
+          </div>
+        </section>
+
+        <!-- 4. Vibration -->
+        <section class="ctl-section" aria-labelledby="h-vib">
+          <h2 class="section-title" id="h-vib">
+            <svg class="section-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 8h2.5l2-5 3 10 2-5H15"/></svg>
+            Vibration
+          </h2>
+          <div class="field">
+            <div class="field-head">
+              <label for="amp-slider">Amplitude</label>
+              <output class="field-value" id="amp-value" for="amp-slider">60%</output>
+            </div>
+            <input type="range" class="range" id="amp-slider" min="0" max="1" step="0.01" value="0.6">
+          </div>
+          <div class="field">
+            <div class="field-head">
+              <label for="damp-slider">Damping
+                <span class="info info-inline" tabindex="0" role="note"
+                  aria-label="Low damping gives sharp, narrow resonances: patterns snap in only near a mode. High damping broadens them so neighbouring modes blend."
+                  data-tip="Low damping gives sharp, narrow resonances: patterns snap in only near a mode. High damping broadens them so neighbouring modes blend.">?</span>
+              </label>
+              <output class="field-value" id="damp-value" for="damp-slider">&zeta; 0.010</output>
+            </div>
+            <input type="range" class="range" id="damp-slider" min="0" max="1000" step="1" value="500" aria-describedby="damp-scale">
+            <div class="scale" id="damp-scale"><span>Sharp</span><span>&harr;</span><span>Broad</span></div>
+          </div>
+        </section>
+
+        <!-- 5. Sand -->
+        <section class="ctl-section" aria-labelledby="h-sand">
+          <h2 class="section-title" id="h-sand">
+            <svg class="section-icon section-icon-fill" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="4" r="1.2"/><circle cx="8" cy="3" r="1.2"/><circle cx="13" cy="5" r="1.2"/><circle cx="5" cy="9" r="1.2"/><circle cx="11" cy="10" r="1.2"/><circle cx="3" cy="13.5" r="1.2"/><circle cx="8.5" cy="13" r="1.2"/><circle cx="13.5" cy="13.5" r="1.2"/></svg>
+            Sand
+          </h2>
+          <div class="field">
+            <div class="field-head">
+              <label for="count-slider">Particles</label>
+              <output class="field-value" id="count-value" for="count-slider">15,000</output>
+            </div>
+            <input type="range" class="range" id="count-slider" min="1000" max="40000" step="1000" value="15000">
+            <div class="scale" aria-hidden="true"><span>1k</span><span>40k</span></div>
+          </div>
+          <button type="button" class="btn btn-block" id="scatter-btn" title="Scatter the sand uniformly again  (S key)">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 1 1 11.9 4.1"/><path d="M12.5 1.5v3h-3"/></svg>
+            Scatter sand
+          </button>
+        </section>
+
+        <!-- 6. Layers -->
+        <section class="ctl-section" aria-labelledby="h-layers">
+          <h2 class="section-title" id="h-layers">
+            <svg class="section-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 1.5 5 8 8.5 14.5 5 8 1.5Z"/><path d="m1.5 8.5 6.5 3.5 6.5-3.5"/><path d="m1.5 11.8 6.5 3 6.5-3"/></svg>
+            Layers
+          </h2>
+          <div class="switch-list">
+            <label class="switch-row" for="layer-sand">
+              <span class="swatch swatch-sand" aria-hidden="true"></span>
+              <span class="switch-text">
+                <span class="switch-label">Sand particles</span>
+                <span class="switch-desc">Grains bounce off moving areas</span>
+              </span>
+              <input type="checkbox" class="switch" role="switch" id="layer-sand" data-layer="sand">
+            </label>
+            <label class="switch-row" for="layer-heatmap">
+              <span class="swatch swatch-heat" aria-hidden="true"></span>
+              <span class="switch-text">
+                <span class="switch-label">Amplitude heatmap</span>
+                <span class="switch-desc">Brighter = stronger vibration</span>
+              </span>
+              <input type="checkbox" class="switch" role="switch" id="layer-heatmap" data-layer="heatmap">
+            </label>
+            <label class="switch-row" for="layer-nodal">
+              <span class="swatch swatch-nodal" aria-hidden="true"></span>
+              <span class="switch-text">
+                <span class="switch-label">Nodal lines</span>
+                <span class="switch-desc">Exact lines of zero motion</span>
+              </span>
+              <input type="checkbox" class="switch" role="switch" id="layer-nodal" data-layer="nodal">
+            </label>
+            <label class="switch-row" for="layer-plate3d">
+              <span class="swatch swatch-3d" aria-hidden="true"></span>
+              <span class="switch-text">
+                <span class="switch-label">3D plate</span>
+                <span class="switch-desc">Slow-motion deformation, orbitable</span>
+              </span>
+              <input type="checkbox" class="switch" role="switch" id="layer-plate3d" data-layer="plate3d">
+            </label>
+          </div>
+        </section>
+
+        <!-- 7. Sound -->
+        <section class="ctl-section" aria-labelledby="h-sound">
+          <h2 class="section-title" id="h-sound">
+            <svg class="section-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6v4h3l4 3V3L5 6H2Z"/><path d="M11.5 5.5a3.5 3.5 0 0 1 0 5M13.3 3.5a6.3 6.3 0 0 1 0 9"/></svg>
+            Sound
+          </h2>
+          <label class="switch-row" for="sound-toggle">
+            <span class="switch-text">
+              <span class="switch-label">Play tone</span>
+              <span class="switch-desc">Sine wave at the driving frequency</span>
+            </span>
+            <input type="checkbox" class="switch" role="switch" id="sound-toggle" aria-describedby="sound-note">
+          </label>
+          <div class="field">
+            <div class="field-head">
+              <label for="volume-slider">Volume</label>
+              <output class="field-value" id="volume-value" for="volume-slider">25%</output>
+            </div>
+            <input type="range" class="range" id="volume-slider" min="0" max="1" step="0.01" value="0.25">
+          </div>
+          <p class="note" id="sound-note">Browsers only start audio after a click, so sound stays off until you switch it on. Output is capped for comfort &mdash; mind your ears at high frequencies.</p>
+        </section>
+
+        <!-- Shortcuts -->
+        <section class="ctl-section ctl-section-last" aria-labelledby="h-keys">
+          <h2 class="section-title" id="h-keys">
+            <svg class="section-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="3.5" width="14" height="9" rx="2"/><path d="M4 6.5h.01M6.7 6.5h.01M9.3 6.5h.01M12 6.5h.01M4.5 9.5h7"/></svg>
+            Shortcuts
+          </h2>
+          <dl class="keys">
+            <div><dt><kbd>&larr;</kbd><kbd>&rarr;</kbd></dt><dd>Frequency &plusmn;1% <span class="muted">(Shift &plusmn;10%)</span></dd></div>
+            <div><dt><kbd>[</kbd><kbd>]</kbd></dt><dd>Previous / next resonance</dd></div>
+            <div><dt><kbd>Space</kbd></dt><dd>Start / stop sweep</dd></div>
+            <div><dt><kbd>S</kbd></dt><dd>Scatter sand</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="app-footer">
+      <span>Analytic mode model &middot; square: cos&middot;cos &middot; circle: Bessel J</span>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <div class="boot-error" id="boot-error" role="alert" hidden>
+    <strong>The simulator could not start.</strong>
+    <span>ES modules don&rsquo;t load from <code>file://</code>. Serve the folder over HTTP, e.g. <code>python3 -m http.server 8000</code>, then open <code>http://localhost:8000</code>.</span>
+  </div>
+  <script>
+    // Fallback message if the module graph failed to load or init threw.
+    window.addEventListener('load', function () {
+      if (window.chladni) return;
+      var el = document.getElementById('boot-error');
+      if (location.protocol !== 'file:') {
+        el.querySelector('span').textContent = 'Something went wrong while loading. Check the browser console for details.';
+      }
+      el.hidden = false;
+    });
+  </script>
+</body>
+</html>
